@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 np.set_printoptions(edgeitems=30, linewidth=100000,
                     formatter=dict(float=lambda x: "%.9g" % x))
 
-np.random.seed(912233987)
-
 
 # An informal interface for learning rules
 class LearningRule:
@@ -18,8 +16,14 @@ class LearningRule:
 
 
 class SPiCRule(LearningRule):
-    min_bias: np.float16 = 0
-    max_bias: np.float16 = 1.0
+    min_bias = -1
+    max_bias = 1
+
+    min_curr = -0.1
+    max_curr = 2
+
+    min_weight = 0
+    max_weight = 1.0
 
     def update_edge_level(pre_layer, post_layer, edge, n):
         if not n:
@@ -54,10 +58,35 @@ class SPiCRule(LearningRule):
         pre_layer.bias = np.clip(
             pre_layer.bias, SPiCRule.min_bias, SPiCRule.max_bias)
 
-    def update_layer_level(layer):
+        # Weight update
         pass
+        num = len(pre_layer.spikes_hist)
+        spikes_hist = np.stack(pre_layer.spikes_hist, axis=0) / num
+        gradient = np.zeros_like(edge.weights, dtype=np.float16)
+        for i in spikes_hist:
+            gradient += np.tile(i, (post_layer.n, 1))
+
+        edge.weights += -0.001 * error.reshape(-1, 1) * gradient
+        edge.weights = np.clip(
+            edge.weights, SPiCRule.min_weight, SPiCRule.max_weight)
+
+    def update_layer_level(layer):
+        if isinstance(layer, OutputLayer):
+            return
         # Bias stabilization
+        # Make sure total input current never goes beyond some threshold
+        curr_prev = layer.curr_hist[-1] + layer.bias
+        delta_left = SPiCRule.min_curr - curr_prev
+        delta_right = curr_prev - SPiCRule.max_curr
+        cond = np.logical_xor(delta_left > 0, delta_right > 0)
+        delta = np.maximum(delta_left, delta_right)[cond]
+        layer.bias[cond] += delta * 0.01
+
+        layer.bias = np.clip(layer.bias, SPiCRule.min_bias, SPiCRule.max_bias)
+
         # Should be done once per layer
+
+# Base class for spiking network layer
 
 
 class SNNLayer:
@@ -86,6 +115,7 @@ class SNNLayer:
 
 class DynamicBiasLayer(SNNLayer):
     t = 10
+    pot_max = 20.0
 
     def __init__(self, n):
         super().__init__(n)
@@ -103,6 +133,7 @@ class DynamicBiasLayer(SNNLayer):
 
         # Update potential
         self.pot = self.pot * (1 - self.decay) + total_curr
+        self.pot = np.clip(self.pot, self.reset, self.pot_max)
         self.pot_hist.append(self.pot.copy())
 
         # Calculate spikes
@@ -114,9 +145,9 @@ class DynamicBiasLayer(SNNLayer):
         self._reset_in_()
 
     def h_prime(self, x):
-        width = 10.0
+        width = 1.3  # testing
         u = (x - self.threshold) / width
-        grad = np.maximum(0.0, 1.0 - np.abs(u)) / width
+        grad = np.maximum(0.0, 1.0 - np.abs(u))
         return grad.astype(np.float16)
 
 
@@ -169,12 +200,18 @@ class Network:
         # for single-layer testing purposes
         self.layers = [
             DynamicBiasLayer(10),
+            DynamicBiasLayer(16),
+            DynamicBiasLayer(16),
             OutputLayer(10)
         ]
         self.edges = [
-            Edge(0, -1, 10, 10),
+            Edge(0, 1, 10, 16),
+            Edge(1, 2, 16, 16),
+            Edge(2, -1, 16, 10),
         ]
         self.adj = [
+            [1],
+            [2],
             [-1],
             []
         ]
@@ -212,8 +249,8 @@ class Network:
             SPiCRule.update_edge_level(pre_layer, post_layer, edge,
                                        len(self.adj[pre]))
 
-        out = [np.stack(self.layers[-(id + 1)].curr_hist, axis=0).mean(axis=0)
-               for id in range(self.n_out)]
+        out = np.array([np.stack(self.layers[-(id + 1)].curr_hist, axis=0).mean(axis=0)
+                        for id in range(self.n_out)])
 
         # analysis on out?
         #
@@ -221,29 +258,43 @@ class Network:
 
 
 x = Network()
+T = 600
 target = np.array([
-    [0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
-])
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+], dtype=np.float16)
 o = np.zeros(10)
-i_ = np.random.rand(1, 10) / 1.3
+i_ = np.random.random_sample((1, 10)).astype(np.float16) / 1.3
+
 bias_list = []
-for i in range(550):
+bias_list2 = []
+bias_list3 = []
+loss_list = []
+for i in range(T):
     k = x.tick(i_, targets=target)
     error = 1 / 2 * np.mean((k - target[0]) ** 2)
-    print(error, np.linalg.norm(x.layers[0].bias), np.mean(k))
+    print(error, np.linalg.norm(x.layers[0].bias), k)
+    loss_list.append(error * 10)
+    # print(x.layers[0].bias, i_[0])
     o = x.layers[0].bias
     bias_list.append(np.linalg.norm(x.layers[0].bias))
-    i_[0] += o / 10
+    bias_list2.append(np.linalg.norm(x.layers[1].bias))
+    bias_list3.append(np.linalg.norm(x.layers[2].bias))
 
-    plt.plot(list(range(10)), k[0], alpha=i/550, color='blue')
+    plt.plot(list(range(10)), k[0], alpha=i/T, color='blue')
 
 plt.axvline(4, 0, 1.5, color='red')
 plt.axvline(9, 0, 1.5, color='red')
+plt.title("Output vector over time")
+# plt.savefig("output.png")
 
 plt.figure()
 plt.plot(bias_list)
-plt.savefig("without-additional.png")
+plt.plot(bias_list2)
+plt.plot(bias_list3)
+plt.plot(loss_list)
+plt.title("Bias magnitude over time")
+# plt.savefig("no-bias-convergence.png")
 
 plt.show()
 
-print(np.stack(x.layers[0].spike_hist, axis=0))
+print(np.stack(x.layers[0].spikes_hist, axis=0))

@@ -1,0 +1,12 @@
+Achievements:
+We have finally managed to reach convergence and 0 bias under certain conditions. Specifically, if we limit bias to be non-negative and never rise greater than 1.0, and we simulate bias matching in the input layer, then the input current converges properly, and L0 bias decays to 0 by about 120 time-steps.
+
+
+Problems:
+Whenever bias is allowed to be negative, the network seems to want to saturate at maximum values. However, when bias is clipped to [0, 1], the bias never actually needs to be clamped at 0, which cannot currently be explained. Additionally, when bias is allowed to be negative, even when bias matching is activated in the input, the bias does not stabilize to 0. This is easily explained if L0's bias is trying to descend to a position not in its domain.
+
+Also, when input bias matching is not enabled while bias is clamped to [0, 1], the network still does not converge. If we consider this, then we can infer that the conditions under which the network converged were likely from a local minimum in error.
+
+
+Analysis:
+This is likely an issue with the gradient calculation in SPiCRule. It seems to break for negative values of bias, and it wants to saturate bias and spiking rates. At this point, it would probably be a bad idea to implement homeostasis. We should first try to add code that mitigates this.
