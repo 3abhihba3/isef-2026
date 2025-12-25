@@ -1,16 +1,17 @@
 import numpy as np
 from collections import deque
-import matplotlib.pyplot as plt
+from abc import ABC, abstractmethod
 
 np.set_printoptions(edgeitems=30, linewidth=100000,
                     formatter=dict(float=lambda x: "%.9g" % x))
 
 
-# An informal interface for learning rules
-class LearningRule:
+class LearningRule(ABC):
+    @abstractmethod
     def update_edge_level(pre_layer, post_layer, edge, error, n):
         pass
 
+    @abstractmethod
     def update_layer_level(layer):
         pass
 
@@ -23,7 +24,7 @@ class SPiCRule(LearningRule):
     max_curr = 2
 
     min_weight = 0
-    max_weight = 1.0
+    max_weight = 2.5
 
     def update_edge_level(pre_layer, post_layer, edge, n):
         if not n:
@@ -91,7 +92,7 @@ class SPiCRule(LearningRule):
 
 class SNNLayer:
     decay = 0.2
-    threshold = 1
+    threshold = 0.3
     reset = 0
 
     def __init__(self, n):
@@ -181,7 +182,7 @@ class Edge:
 class Network:
     def __init__(self):
         # for MNIST solver
-        self.layers2 = [
+        self.layers = [
             DynamicBiasLayer(784),
             DynamicBiasLayer(32),
             DynamicBiasLayer(32),
@@ -189,32 +190,14 @@ class Network:
             OutputLayer(10),
         ]
 
-        self.edges2 = [
+        self.edges = [
             Edge(0, 1, 784, 32),
             Edge(1, 2, 32, 32),
             Edge(2, 3, 32, 10),
             Edge(3, -1, 10, 10)
         ]
-        self.adj2 = [[1], [2], [3], [-1], []]
+        self.adj = [[1], [2], [3], [-1], []]
 
-        # for single-layer testing purposes
-        self.layers = [
-            DynamicBiasLayer(10),
-            DynamicBiasLayer(16),
-            DynamicBiasLayer(16),
-            OutputLayer(10)
-        ]
-        self.edges = [
-            Edge(0, 1, 10, 16),
-            Edge(1, 2, 16, 16),
-            Edge(2, -1, 16, 10),
-        ]
-        self.adj = [
-            [1],
-            [2],
-            [-1],
-            []
-        ]
         self.n_out = 1
 
     def create_network(self):
@@ -255,46 +238,3 @@ class Network:
         # analysis on out?
         #
         return out
-
-
-x = Network()
-T = 600
-target = np.array([
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-], dtype=np.float16)
-o = np.zeros(10)
-i_ = np.random.random_sample((1, 10)).astype(np.float16) / 1.3
-
-bias_list = []
-bias_list2 = []
-bias_list3 = []
-loss_list = []
-for i in range(T):
-    k = x.tick(i_, targets=target)
-    error = 1 / 2 * np.mean((k - target[0]) ** 2)
-    print(error, np.linalg.norm(x.layers[0].bias), k)
-    loss_list.append(error * 10)
-    # print(x.layers[0].bias, i_[0])
-    o = x.layers[0].bias
-    bias_list.append(np.linalg.norm(x.layers[0].bias))
-    bias_list2.append(np.linalg.norm(x.layers[1].bias))
-    bias_list3.append(np.linalg.norm(x.layers[2].bias))
-
-    plt.plot(list(range(10)), k[0], alpha=i/T, color='blue')
-
-plt.axvline(4, 0, 1.5, color='red')
-plt.axvline(9, 0, 1.5, color='red')
-plt.title("Output vector over time")
-# plt.savefig("output.png")
-
-plt.figure()
-plt.plot(bias_list)
-plt.plot(bias_list2)
-plt.plot(bias_list3)
-plt.plot(loss_list)
-plt.title("Bias magnitude over time")
-# plt.savefig("no-bias-convergence.png")
-
-plt.show()
-
-print(np.stack(x.layers[0].spikes_hist, axis=0))
