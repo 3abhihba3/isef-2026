@@ -2,15 +2,6 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import numpy as np
 
-# to do:
-# homeostasis:
-#   - adjust thresholds, decay to keep firing rate within target range
-# shallow:
-#   - transmit loss information to previous neurons
-# deep:
-# update representations
-#
-
 
 class Reservoir:
     min_rate = 0.1
