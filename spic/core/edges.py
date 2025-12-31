@@ -6,7 +6,7 @@ class Edge:
         self.pre_id = pre
         self.post_id = post
         self.weights = np.random.random_sample((n2, n1)) * np.sqrt(2/n1)
-        print(self.weights)
+        self.weights = 0.122 - np.arctan(self.weights * 10) / 12
 
     def tick(self, input_):
         curr_out = self.weights @ input_

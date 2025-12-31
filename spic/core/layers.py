@@ -24,6 +24,9 @@ class SNNLayer:
     def _reset_in_(self):
         self.in_ = np.zeros((1, self.n), dtype=np.float16)
 
+    def update_input(self, curr):
+        self.in_ = np.append(self.in_, np.expand_dims(curr, axis=0), axis=0)
+
     def tick(self):
         total_curr = np.sum(self.in_, axis=0)
 
@@ -42,7 +45,10 @@ class DynamicBiasLayer(SNNLayer):
     def __init__(self, n):
         super().__init__(n)
         self.bias = np.zeros(n, dtype=np.float16)
-        self.spike_mag = np.ones(n) * 2
+        self.offset = np.zeros(n, dtype=np.float16)
+        self.spike_mag = np.ones(n)
+        # updated in SPiCRule for now
+        self.bias_trace = np.zeros_like(self.bias)
 
         self.pot_hist = deque(maxlen=self.t)
         self.curr_hist = deque(maxlen=self.t)
@@ -50,7 +56,7 @@ class DynamicBiasLayer(SNNLayer):
 
     def tick(self):
         # Update current
-        total_curr = np.sum(self.in_, axis=0) + self.bias
+        total_curr = np.sum(self.in_, axis=0) + self.bias + 0.21
         self.curr_hist.append(total_curr)
 
         # Update potential
@@ -71,6 +77,12 @@ class DynamicBiasLayer(SNNLayer):
         u = (x - DynamicBiasLayer.threshold) / width
         grad = np.maximum(0.0, 1.0 - np.abs(u))
         return grad.astype(np.float16)
+
+    def h(x):
+        new = x.copy()
+        new[new < DynamicBiasLayer.threshold] = 0
+        new[new != 0] = 1
+        return new
 
 
 class OutputLayer(SNNLayer):

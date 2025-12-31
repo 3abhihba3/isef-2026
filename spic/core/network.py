@@ -13,7 +13,10 @@ class Network:
         self.edges = []
         self.adj = defaultdict(list)
 
+        self.t = 0
+
     def reset_state(self):
+        self.t = 0
         for layer in self.layers:
             if isinstance(layer, DynamicBiasLayer):
                 layer.bias = np.zeros_like(layer.bias)
@@ -54,7 +57,7 @@ class Network:
         # update inputs for all InputLayer objects
         for id, x in in_.items():
             layer = self.get_layer(id)
-            layer.in_ = np.append(layer.in_, np.expand_dims(x, axis=0), axis=0)
+            layer.update_input(x)
 
         # update targets for all OutputLayer objects
         if targets is not None:
@@ -81,18 +84,16 @@ class Network:
 
             out = pre_layer.spikes
             curr = edge.tick(out)
-            post_layer.in_ = np.append(self.get_layer(post).in_,
-                                       np.expand_dims(curr, axis=0),
-                                       axis=0)
-
+            post_layer.update_input(curr)
             # update per edge
             if targets is not None:
                 SPiCRule.update_edge_level(pre_layer, post_layer, edge,
-                                           len(self.adj[pre]))
+                                           len(self.adj[pre]), self.t)
 
         out = {}
         for i in self.output_layers:
             out[i.id] = np.stack(i.curr_hist, axis=0).mean(axis=0)
 
         # analysis on out?
+        self.t = 0
         return out
