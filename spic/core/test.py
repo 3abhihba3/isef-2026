@@ -5,6 +5,7 @@ import numpy as np
 
 np.set_printoptions(edgeitems=30, linewidth=100000,
                     formatter=dict(float=lambda x: "%.9g" % x))
+np.random.seed(10)
 
 # a super barebones test to see if the learning rule works across at least one hidden layer.
 # basically just try to model the function y=x with the input x as a one-hot vector
@@ -12,7 +13,7 @@ np.set_printoptions(edgeitems=30, linewidth=100000,
 
 
 l1 = InputLayer(10)
-l2 = DynamicBiasLayer(16)
+l2 = DynamicBiasLayer(20)
 l4 = OutputLayer(10)
 
 x = Network()
@@ -36,8 +37,10 @@ def train(n, plot=False):
         a = np.zeros(10)
         n = i % 10
         a[n] = 1
+        a += np.random.rand(10) / 7
+        print(a)
         input_[l1.id] = a
-        target[l4.id] = a
+        target[l4.id] = (a > 1).astype(np.float16)
         print("iteration", i, "k=", n)
         x.reset_state()
         bias = []
@@ -65,7 +68,9 @@ def train(n, plot=False):
 
 def create_input(x):
     k = np.zeros(10)
+
     k[x] = 1
+    k += np.random.rand(10) / 3
     return {
         l1.id: k
     }
@@ -81,6 +86,7 @@ def test(plot=False):
         o = i % 10
         print("test iteration", i, "num:", o)
         o = create_input(o)
+        print("INPUT", o)
         x.reset_state()
         l = 0
         spikes = [[] for i in range(l2.n)]
@@ -108,7 +114,7 @@ def test(plot=False):
 
 
 test(plot=False)
-train(n=20, plot=False)
+train(n=30, plot=False)
 test(plot=False)
 # plt.plot(L)
 # plt.figure()

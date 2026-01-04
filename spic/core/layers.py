@@ -4,7 +4,7 @@ from collections import deque
 
 class SNNLayer:
     decay = 0.2
-    threshold = 1.0
+    threshold = 1
     reset = 0
     num = 0
 
@@ -46,7 +46,7 @@ class DynamicBiasLayer(SNNLayer):
         super().__init__(n)
         self.bias = np.zeros(n, dtype=np.float16)
         self.offset = np.zeros(n, dtype=np.float16)
-        self.spike_mag = np.ones(n)
+        self.spike_mag = np.random.binomial(1, 0.5, n)
         # updated in SPiCRule for now
         self.bias_trace = np.zeros_like(self.bias)
 
@@ -56,7 +56,7 @@ class DynamicBiasLayer(SNNLayer):
 
     def tick(self):
         # Update current
-        total_curr = np.sum(self.in_, axis=0) + self.bias + 0.21
+        total_curr = np.sum(self.in_, axis=0) + self.bias + 0.17
         self.curr_hist.append(total_curr)
 
         # Update potential

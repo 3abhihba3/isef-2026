@@ -71,17 +71,6 @@ class SPiCRule(LearningRule):
             pre_layer.bias = np.clip(
                 pre_layer.bias, SPiCRule.min_bias, SPiCRule.max_bias)
 
-        # Spike mag update
-        # error (post, ), weights, spikes  I = W @ (S*M)
-        if isinstance(pre_layer, DynamicBiasLayer):
-            gradient = edge.weights.T @ (error /
-                                         len(pre_layer.spikes_hist))
-
-            gradient *= (np.stack(pre_layer.spikes_hist, axis=0) /
-                         pre_layer.spike_mag[None, :]).mean(axis=0).T
-
-            # pre_layer.spike_mag -= 0.2 * gradient / n
-
         # Weight update
 
         num = len(pre_layer.spikes_hist)
